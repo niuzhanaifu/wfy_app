@@ -111,6 +111,7 @@ const char *proto_command_id_name(uint8_t id)
 	case PROTO_CMDID_GET_AP_PASSWD: return "GET_AP_PASSWD";
 	case PROTO_CMDID_SCAN_WIFI:     return "SCAN_WIFI";
 	case PROTO_CMDID_PUSH_SCAN_RESULT: return "PUSH_SCAN_RESULT";
+	case PROTO_CMDID_SWITCH_TO_AP:  return "SWITCH_TO_AP";
 	default:                        return "UNKNOWN";
 	}
 }

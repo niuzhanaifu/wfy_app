@@ -76,6 +76,9 @@
                                                    u8     band         (0=2.4G, 1=5G)
                                              auth_type: 0=open 1=WEP 2=WPA-PSK 3=WPA2-PSK
                                                         4=WPA3-SAE 5=Enterprise 255=unknown */
+#define PROTO_CMDID_SWITCH_TO_AP   0x0A   /* phone -> device: force AP fallback mode.
+                                             RESP payload = one errcode byte. If AP is
+                                             already running this is a no-op success. */
 
 /* Errcodes. For STATUS / SSID / PASSWD / CONNECT replies the RESP payload
  * is exactly one of these bytes. For GET_AP_* the RESP payload is the

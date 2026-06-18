@@ -1771,6 +1771,37 @@ wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password)
 	return st;
 }
 
+wifi_switch_status_t wifi_switch_ensure_ap_mode(void)
+{
+	if (pthread_mutex_trylock(&s_switch_mutex) != 0) {
+		LOGW("wifi_switch_ensure_ap_mode: switch already in progress");
+		return WIFI_SWITCH_ERR_BUSY;
+	}
+
+	if (is_ap_running()) {
+		LOGI("wifi_switch_ensure_ap_mode: AP already running; no-op");
+		pthread_mutex_unlock(&s_switch_mutex);
+		return WIFI_SWITCH_OK;
+	}
+
+	LOGI("wifi_switch_ensure_ap_mode: forcing AP fallback mode");
+	if (wait_for_system_ready() != 0) {
+		pthread_mutex_unlock(&s_switch_mutex);
+		return WIFI_SWITCH_ERR_CONNECT_FAIL;
+	}
+	disable_ipv6();
+
+	if (enter_ap_mode() != 0) {
+		LOGE("wifi_switch_ensure_ap_mode: AP startup failed");
+		pthread_mutex_unlock(&s_switch_mutex);
+		return WIFI_SWITCH_ERR_CONNECT_FAIL;
+	}
+
+	mark_network_ready("AP", "192.168.50.1");
+	pthread_mutex_unlock(&s_switch_mutex);
+	return WIFI_SWITCH_OK;
+}
+
 /* ============================================================
  *   WiFi scan (BLE cmd 0x08 backend)
  * ============================================================ */

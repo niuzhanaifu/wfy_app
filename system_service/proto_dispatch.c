@@ -523,6 +523,19 @@ static void handle_proto_frame(const proto_frame_t *f, proto_sink_t *sink)
 		break;
 	}
 
+	case PROTO_CMDID_SWITCH_TO_AP: {
+		wifi_switch_status_t st;
+		uint8_t errcode;
+
+		LOGI("  >> handler: SWITCH_TO_AP requested");
+		st = wifi_switch_ensure_ap_mode();
+		errcode = wifi_status_to_errcode(st);
+		LOGI("  >> SWITCH_TO_AP done status=%d errcode=0x%02x(%s)",
+		     (int)st, errcode, proto_errcode_name(errcode));
+		send_proto_response(sink, f->seq, cs, cid, errcode);
+		break;
+	}
+
 	default:
 		LOGE("  unknown command_id 0x%02x → reply BAD_CMD", cid);
 		send_proto_response(sink, f->seq, cs, cid, PROTO_ERRCODE_BAD_CMD);

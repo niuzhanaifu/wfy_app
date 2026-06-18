@@ -32,6 +32,12 @@ void *wifi_switch_thread(void *arg);
  * dispatcher thread — run it on a worker and deliver the result async. */
 wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password);
 
+/* Force the board into AP fallback mode on wlan0. If AP is already running,
+ * this is a no-op success. If STA is active, it is stopped and hostapd +
+ * dnsmasq are started on 192.168.50.1. Safe to call from any thread;
+ * returns WIFI_SWITCH_ERR_BUSY if a STA switch/scan/recovery is active. */
+wifi_switch_status_t wifi_switch_ensure_ap_mode(void);
+
 /* Returns 1 if wlan0 currently holds a real (non-link-local) IPv4
  * address — i.e. it associated and finished DHCP — and 0 otherwise.
  * Reads /proc-style state via `ip -4 addr show`, so it always reflects
