@@ -1,6 +1,8 @@
 CC ?= gcc
 PKG_CONFIG ?= pkg-config
 CFLAGS ?= -Wall -O2
+PLATFORM ?= rk3566
+TARGET_PLATFORM ?= $(PLATFORM)
 
 # gio-2.0 brings glib-2.0 + gobject-2.0 + GDBus in one go. gio-unix-2.0 is
 # needed because Buildroot's pkg-config sometimes only lists unix helpers
@@ -12,6 +14,7 @@ GIO_CFLAGS := $(shell $(PKG_CONFIG) --cflags gio-2.0 gio-unix-2.0)
 GIO_LIBS   := $(shell $(PKG_CONFIG) --libs   gio-2.0 gio-unix-2.0)
 
 $(info [system_service] PKG_CONFIG=$(PKG_CONFIG))
+$(info [system_service] TARGET_PLATFORM=$(TARGET_PLATFORM))
 $(info [system_service] GIO_CFLAGS=$(GIO_CFLAGS))
 $(info [system_service] GIO_LIBS=$(GIO_LIBS))
 
@@ -26,9 +29,36 @@ endif
 override CFLAGS  += -pthread $(GIO_CFLAGS)
 override LDFLAGS += -pthread
 
+ifeq ($(strip $(TARGET_PLATFORM)),a733)
+override CFLAGS += -DSYSTEM_SERVICE_PLATFORM_A733=1
+WIFI_SWITCH_OBJ := wifi_switch_a733.o
+else
+override CFLAGS += -DSYSTEM_SERVICE_PLATFORM_RK3566=1
+WIFI_SWITCH_OBJ := wifi_switch.o
+endif
+
+ifneq ($(strip $(LOG_ROOT)),)
+override CFLAGS += -DSYSTEM_SERVICE_LOG_ROOT=\"$(LOG_ROOT)\"
+endif
+ifneq ($(strip $(WIFI_IFACE)),)
+override CFLAGS += -DSYSTEM_SERVICE_WIFI_IFACE=\"$(WIFI_IFACE)\"
+endif
+ifneq ($(strip $(BLE_NAME)),)
+override CFLAGS += -DSYSTEM_SERVICE_BLE_NAME=\"$(BLE_NAME)\"
+endif
+ifneq ($(strip $(AP_SSID)),)
+override CFLAGS += -DSYSTEM_SERVICE_AP_SSID=\"$(AP_SSID)\"
+endif
+ifneq ($(strip $(AP_PASSWD)),)
+override CFLAGS += -DSYSTEM_SERVICE_AP_PASSWD=\"$(AP_PASSWD)\"
+endif
+ifneq ($(strip $(NUM_CPUS)),)
+override CFLAGS += -DSYSTEM_SERVICE_NUM_CPUS=$(NUM_CPUS)
+endif
+
 TARGET = system_service
 OBJS = main.o log.o time_sync.o uart_log.o sys_stat.o \
-       ble_gatt.o protocol.o wifi_switch.o \
+       ble_gatt.o protocol.o $(WIFI_SWITCH_OBJ) \
        proto_dispatch.o unix_ipc.o
 
 all: $(TARGET)
@@ -40,13 +70,14 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 main.o:           main.c           log.h time_sync.h uart_log.h sys_stat.h ble_gatt.h wifi_switch.h unix_ipc.h
-log.o:            log.c            log.h
+log.o:            log.c            log.h platform.h
 time_sync.o:      time_sync.c      log.h time_sync.h
-uart_log.o:       uart_log.c       log.h uart_log.h
-sys_stat.o:       sys_stat.c       log.h sys_stat.h
-ble_gatt.o:       ble_gatt.c       log.h ble_gatt.h protocol.h wifi_switch.h proto_sink.h proto_dispatch.h
+uart_log.o:       uart_log.c       log.h uart_log.h platform.h
+sys_stat.o:       sys_stat.c       log.h sys_stat.h platform.h
+ble_gatt.o:       ble_gatt.c       log.h ble_gatt.h protocol.h wifi_switch.h proto_sink.h proto_dispatch.h platform.h
 protocol.o:       protocol.c       log.h ble_gatt.h protocol.h
 wifi_switch.o:    wifi_switch.c    log.h wifi_switch.h
+wifi_switch_a733.o: wifi_switch_a733.c log.h wifi_switch.h platform.h
 proto_dispatch.o: proto_dispatch.c log.h protocol.h proto_sink.h proto_dispatch.h wifi_switch.h
 unix_ipc.o:       unix_ipc.c       log.h proto_sink.h proto_dispatch.h unix_ipc.h
 

@@ -41,6 +41,7 @@
 #include "log.h"
 
 #include "ble_gatt.h"
+#include "platform.h"
 #include "protocol.h"
 #include "wifi_switch.h"
 #include "proto_sink.h"
@@ -48,7 +49,7 @@
 
 /* =============================== Config =============================== */
 
-#define DEVICE_NAME         "WFY"
+#define DEVICE_NAME         SYSTEM_SERVICE_BLE_NAME
 
 /* Nordic UART Service (de-facto standard for BLE "serial"). */
 #define NUS_SERVICE_UUID    "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
@@ -869,6 +870,18 @@ static void *bluez_register_worker(void *ud)
 	return NULL;
 }
 
+static void platform_prepare_bluetooth(void)
+{
+#if SYSTEM_SERVICE_IS_A733
+	/* Debian images commonly leave Bluetooth soft-blocked until userspace
+	 * unblocks it. These commands are best-effort only; the real readiness
+	 * check below is still BlueZ's org.bluez.Adapter1 discovery. */
+	LOGI("[init] A733/Debian bluetooth prepare: rfkill unblock + hci up");
+	system("rfkill unblock bluetooth >/dev/null 2>&1");
+	system("hciconfig hci0 up >/dev/null 2>&1");
+#endif
+}
+
 void *ble_gatt_thread(void *arg)
 {
 	GError *err = NULL;
@@ -881,6 +894,8 @@ void *ble_gatt_thread(void *arg)
 	LOGI("service UUID: %s", NUS_SERVICE_UUID);
 	LOGI("RX char UUID: %s  (phone writes here)", NUS_RX_CHAR_UUID);
 	LOGI("TX char UUID: %s  (phone subscribes here)", NUS_TX_CHAR_UUID);
+
+	platform_prepare_bluetooth();
 
 	/* System bus: bluez runs there. Session bus wouldn't work. */
 	LOGI("[init] connecting to system D-Bus...");

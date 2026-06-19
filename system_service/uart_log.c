@@ -18,10 +18,11 @@
 
 #define LOG_TAG "uart_log"
 #include "log.h"
+#include "platform.h"
 
 #include "uart_log.h"
 
-#define LOG_DIR     "/blackbox/uart_log"
+#define LOG_DIR     SYSTEM_SERVICE_LOG_ROOT "/uart_log"
 #define INDEX_FILE  LOG_DIR "/index_now"
 #define MAX_SLOTS   20
 #define SIZE_CAP    (50UL * 1024UL * 1024UL)  /* safety belt per slot */
@@ -60,7 +61,7 @@ void *uart_log_thread(void *arg)
 
 	(void)arg;
 
-	mkdir(LOG_DIR, 0755);
+	system_service_mkdir_p(LOG_DIR, 0755);
 
 	prev = read_index();
 	slot = prev + 1;

@@ -20,6 +20,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "log.h"
+#include "platform.h"
 
 #include <errno.h>
 #include <stdarg.h>
@@ -31,7 +32,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define LOG_DIR        "/blackbox/system"
+#define LOG_DIR        SYSTEM_SERVICE_LOG_ROOT "/system"
 #define INDEX_FILE     LOG_DIR "/now_index"
 #define MAX_SLOTS      10
 #define PER_SLOT_CAP   (10UL * 1024UL * 1024UL)   /* 10 MiB per slot */
@@ -111,7 +112,7 @@ int log_init(int debug)
 
 	/* File mode. Create the directory first — /blackbox is a separate
 	 * partition mounted by S21mountall.sh; we only need the sub-dir. */
-	mkdir(LOG_DIR, 0755);
+	system_service_mkdir_p(LOG_DIR, 0755);
 
 	prev = read_index();
 	slot = prev + 1;

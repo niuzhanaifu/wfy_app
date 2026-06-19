@@ -109,16 +109,17 @@
 
 #define LOG_TAG "sys_stat"
 #include "log.h"
+#include "platform.h"
 
 #include "sys_stat.h"
 
-#define LOG_DIR     "/blackbox/sys_stat"
+#define LOG_DIR     SYSTEM_SERVICE_LOG_ROOT "/sys_stat"
 #define INDEX_FILE  LOG_DIR "/index_now"
 #define MAX_SLOTS   20
 #define SAMPLE_SEC  5
 #define SIZE_CAP    (10UL * 1024UL * 1024UL)
 
-#define NUM_CPUS        4          /* RK3566 */
+#define NUM_CPUS        SYSTEM_SERVICE_NUM_CPUS
 #define MAX_THERMAL     8          /* 尝试 zone0..zone7 */
 #define MAX_IFACES      8          /* 最多跟踪 8 个网口, 足够 eth0/wlan0/wlan1 */
 #define MAX_PROCS       512        /* 一般板子同时跑的进程数 */
@@ -537,7 +538,7 @@ void *sys_stat_thread(void *arg)
 
 	(void)arg;
 
-	mkdir(LOG_DIR, 0755);
+	system_service_mkdir_p(LOG_DIR, 0755);
 
 	/* slot 轮换: 读出上次的编号, 本次 +1, 超 MAX_SLOTS 回到 1. */
 	prev_idx = read_index();

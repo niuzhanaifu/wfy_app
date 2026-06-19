@@ -32,10 +32,10 @@ void *wifi_switch_thread(void *arg);
  * dispatcher thread — run it on a worker and deliver the result async. */
 wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password);
 
-/* Force the board into AP fallback mode on wlan0. If AP is already running,
- * this is a no-op success. If STA is active, it is stopped and hostapd +
- * dnsmasq are started on 192.168.50.1. Safe to call from any thread;
- * returns WIFI_SWITCH_ERR_BUSY if a STA switch/scan/recovery is active. */
+/* Force the board into AP fallback mode on the platform WiFi interface.
+ * RK3566 uses hostapd + dnsmasq; A733/Debian uses NetworkManager hotspot.
+ * Safe to call from any thread; returns WIFI_SWITCH_ERR_BUSY if a STA
+ * switch/scan/recovery is active. */
 wifi_switch_status_t wifi_switch_ensure_ap_mode(void);
 
 /* Returns 1 if wlan0 currently holds a real (non-link-local) IPv4
@@ -46,10 +46,9 @@ wifi_switch_status_t wifi_switch_ensure_ap_mode(void);
  * dispatcher thread. */
 int wifi_switch_is_connected(void);
 
-/* Read the SSID and PSK that hostapd is currently advertising on wlan0 by
- * parsing /etc/hostapd.conf. ssid_out is mandatory and is populated with
- * the value of the `ssid=` line; pwd_out is populated with the value of
- * `wpa_passphrase=` (left empty when hostapd is configured open).
+/* Read the SSID and PSK that the provisioning AP advertises. RK3566 parses
+ * /etc/hostapd.conf; A733/Debian uses hostapd.conf when present and falls
+ * back to compile-time AP defaults otherwise.
  *
  * Returns 0 on success, -1 if hostapd.conf is unreadable or has no
  * `ssid=` line. Both buffers are NUL-terminated even on failure (set to
