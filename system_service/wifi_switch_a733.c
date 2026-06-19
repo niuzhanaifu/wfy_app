@@ -45,6 +45,15 @@
 
 static pthread_mutex_t s_switch_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static int require_root_for_control(const char *op)
+{
+	if (geteuid() == 0)
+		return 0;
+	LOGE("A733 %s requires root privileges; run system_service via systemd/root "
+	     "so NetworkManager authorizes WiFi control", op ? op : "WiFi control");
+	return -1;
+}
+
 static char *lstrip(char *s)
 {
 	while (*s && isspace((unsigned char)*s))
@@ -497,6 +506,7 @@ static int target_visible_in_scan(const char *ssid)
 	char *buf, *line, *saveptr = NULL;
 	size_t ssid_len;
 	int visible = 0;
+	int rc;
 
 	if (!ssid || !ssid[0])
 		return 0;
@@ -510,10 +520,19 @@ static int target_visible_in_scan(const char *ssid)
 
 	buf = malloc(SCAN_BUF_SZ);
 	if (!buf)
-		return 0;
-	if (exec_capture(cmd, buf, SCAN_BUF_SZ) != 0 || !strstr(buf, "BSS ")) {
-		free(buf);
-		return 0;
+		return -1;
+	rc = exec_capture(cmd, buf, SCAN_BUF_SZ);
+	if (rc != 0 || !strstr(buf, "BSS ")) {
+		LOGW("target_visible_in_scan: '%s' unusable rc=%d: %.180s",
+		     cmd, rc, buf[0] ? buf : "(empty)");
+		snprintf(cmd, sizeof(cmd), "iw %s scan 2>&1", ifq);
+		rc = exec_capture(cmd, buf, SCAN_BUF_SZ);
+		if (rc != 0 || !strstr(buf, "BSS ")) {
+			LOGW("target_visible_in_scan: '%s' unusable rc=%d: %.180s",
+			     cmd, rc, buf[0] ? buf : "(empty)");
+			free(buf);
+			return -1;
+		}
 	}
 
 	for (line = strtok_r(buf, "\n", &saveptr); line;
@@ -550,6 +569,9 @@ wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password)
 	int rc, i;
 	wifi_switch_status_t st = WIFI_SWITCH_ERR_UNKNOWN;
 
+	if (require_root_for_control("STA connect") != 0)
+		return WIFI_SWITCH_ERR_UNKNOWN;
+
 	if (pthread_mutex_trylock(&s_switch_mutex) != 0) {
 		LOGW("wifi_switch_run_now: another switch is in progress");
 		return WIFI_SWITCH_ERR_BUSY;
@@ -585,11 +607,17 @@ wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password)
 	exec_cmd(cmd);
 	sleep(1);
 
-	if (!target_visible_in_scan(use_ssid)) {
-		LOGE("A733 WiFi connect: target SSID '%s' not visible", use_ssid);
-		st = WIFI_SWITCH_ERR_NO_SSID;
-		ensure_ap_mode_locked();
-		goto out_unlock;
+	{
+		int visible = target_visible_in_scan(use_ssid);
+		if (visible == 1) {
+			LOGI("A733 WiFi connect: target SSID '%s' visible", use_ssid);
+		} else if (visible == 0) {
+			LOGW("A733 WiFi connect: target SSID '%s' not seen in pre-scan; "
+			     "continuing with nmcli connect", use_ssid);
+		} else {
+			LOGW("A733 WiFi connect: pre-scan inconclusive for '%s'; "
+			     "continuing with nmcli connect", use_ssid);
+		}
 	}
 
 	if (use_pwd[0]) {
@@ -603,12 +631,37 @@ wifi_switch_status_t wifi_switch_run_now(const char *ssid, const char *password)
 	}
 
 	rc = exec_capture(cmd, out, sizeof(out));
+	if (rc != 0 &&
+	    (contains_ci(out, "No network with SSID") ||
+	     contains_ci(out, "not found"))) {
+		LOGW("A733 nmcli direct connect could not find SSID; "
+		     "trying explicit connection profile");
+		nm_delete_connection(NM_STA_CONN);
+		snprintf(cmd, sizeof(cmd),
+		         "nmcli connection add type wifi ifname %s con-name %s ssid %s 2>&1",
+		         ifq, connq, ssidq);
+		rc = exec_capture(cmd, out, sizeof(out));
+		if (rc == 0 && use_pwd[0]) {
+			snprintf(cmd, sizeof(cmd),
+			         "nmcli connection modify %s wifi-sec.key-mgmt wpa-psk wifi-sec.psk %s 2>&1",
+			         connq, pwdq);
+			rc = exec_capture(cmd, out, sizeof(out));
+		}
+		if (rc == 0) {
+			snprintf(cmd, sizeof(cmd),
+			         "nmcli -w 70 connection up %s 2>&1", connq);
+			rc = exec_capture(cmd, out, sizeof(out));
+		}
+	}
 	if (rc != 0) {
 		LOGE("A733 nmcli connect failed rc=%d: %.300s", rc, out);
 		if (contains_ci(out, "password") ||
 		    contains_ci(out, "secret") ||
 		    contains_ci(out, "secrets"))
 			st = WIFI_SWITCH_ERR_BAD_PASSWORD;
+		else if (contains_ci(out, "No network with SSID") ||
+		         contains_ci(out, "not found"))
+			st = WIFI_SWITCH_ERR_NO_SSID;
 		else
 			st = WIFI_SWITCH_ERR_CONNECT_FAIL;
 		ensure_ap_mode_locked();
@@ -716,6 +769,9 @@ wifi_switch_status_t wifi_switch_ensure_ap_mode(void)
 {
 	wifi_switch_status_t st;
 
+	if (require_root_for_control("AP fallback") != 0)
+		return WIFI_SWITCH_ERR_UNKNOWN;
+
 	if (pthread_mutex_trylock(&s_switch_mutex) != 0) {
 		LOGW("wifi_switch_ensure_ap_mode: switch already in progress");
 		return WIFI_SWITCH_ERR_BUSY;
@@ -775,6 +831,9 @@ void *wifi_switch_thread(void *arg)
 	LOGI("=================================================");
 	LOGI("  A733 WiFi switch - Debian/NetworkManager backend");
 	LOGI("=================================================");
+
+	if (require_root_for_control("boot WiFi setup") != 0)
+		return NULL;
 
 	if (read_home_wifi(ssid, sizeof(ssid), pwd, sizeof(pwd)) == 0) {
 		LOGI("[BOOT] stored SSID found: %s", ssid);

@@ -52,6 +52,12 @@ endif
 ifneq ($(strip $(AP_PASSWD)),)
 override CFLAGS += -DSYSTEM_SERVICE_AP_PASSWD=\"$(AP_PASSWD)\"
 endif
+ifneq ($(strip $(SOCK_PATH)),)
+override CFLAGS += -DSYSTEM_SERVICE_SOCK_PATH=\"$(SOCK_PATH)\"
+endif
+ifneq ($(strip $(SOCK_FALLBACK_PATH)),)
+override CFLAGS += -DSYSTEM_SERVICE_SOCK_FALLBACK_PATH=\"$(SOCK_FALLBACK_PATH)\"
+endif
 ifneq ($(strip $(NUM_CPUS)),)
 override CFLAGS += -DSYSTEM_SERVICE_NUM_CPUS=$(NUM_CPUS)
 endif
@@ -71,7 +77,7 @@ $(TARGET): $(OBJS)
 
 main.o:           main.c           log.h time_sync.h uart_log.h sys_stat.h ble_gatt.h wifi_switch.h unix_ipc.h
 log.o:            log.c            log.h platform.h
-time_sync.o:      time_sync.c      log.h time_sync.h
+time_sync.o:      time_sync.c      log.h time_sync.h platform.h
 uart_log.o:       uart_log.c       log.h uart_log.h platform.h
 sys_stat.o:       sys_stat.c       log.h sys_stat.h platform.h
 ble_gatt.o:       ble_gatt.c       log.h ble_gatt.h protocol.h wifi_switch.h proto_sink.h proto_dispatch.h platform.h
@@ -79,10 +85,13 @@ protocol.o:       protocol.c       log.h ble_gatt.h protocol.h
 wifi_switch.o:    wifi_switch.c    log.h wifi_switch.h
 wifi_switch_a733.o: wifi_switch_a733.c log.h wifi_switch.h platform.h
 proto_dispatch.o: proto_dispatch.c log.h protocol.h proto_sink.h proto_dispatch.h wifi_switch.h
-unix_ipc.o:       unix_ipc.c       log.h proto_sink.h proto_dispatch.h unix_ipc.h
+unix_ipc.o:       unix_ipc.c       log.h proto_sink.h proto_dispatch.h unix_ipc.h platform.h
 
 clean:
 	rm -f $(TARGET) *.o
 
 install:
 	install -D -m 0755 $(TARGET) $(DESTDIR)/usr/bin/$(TARGET)
+ifeq ($(strip $(TARGET_PLATFORM)),a733)
+	install -D -m 0644 system_service-a733.service $(DESTDIR)/etc/systemd/system/system_service.service
+endif

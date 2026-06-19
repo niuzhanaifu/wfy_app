@@ -63,6 +63,13 @@ void *uart_log_thread(void *arg)
 
 	system_service_mkdir_p(LOG_DIR, 0755);
 
+#if SYSTEM_SERVICE_IS_A733
+	if (geteuid() != 0) {
+		LOGW("A733/Debian uart_log skipped: /dev/kmsg requires root or CAP_SYSLOG");
+		return NULL;
+	}
+#endif
+
 	prev = read_index();
 	slot = prev + 1;
 	if (slot > MAX_SLOTS)

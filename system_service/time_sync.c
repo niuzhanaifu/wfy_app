@@ -16,6 +16,7 @@
 #define LOG_TAG "time_sync"
 #include "log.h"
 
+#include "platform.h"
 #include "time_sync.h"
 
 /* Switch the system timezone at runtime by retargeting /etc/localtime
@@ -151,6 +152,14 @@ static int sync_time_from_ntp(void)
 void *time_sync_thread(void *arg)
 {
 	(void)arg;
+
+#if SYSTEM_SERVICE_IS_A733
+	if (geteuid() != 0) {
+		LOGW("A733/Debian time sync skipped: root privileges required; "
+		     "use systemd-timesyncd/chrony or run system_service as root");
+		return NULL;
+	}
+#endif
 
 	set_system_timezone("Asia/Shanghai");
 

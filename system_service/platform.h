@@ -37,6 +37,18 @@
 #define SYSTEM_SERVICE_HOSTAPD_CONF "/etc/hostapd.conf"
 #endif
 
+#ifndef SYSTEM_SERVICE_SOCK_PATH
+#define SYSTEM_SERVICE_SOCK_PATH "/run/system_service.sock"
+#endif
+
+#ifndef SYSTEM_SERVICE_SOCK_FALLBACK_PATH
+#if SYSTEM_SERVICE_IS_A733
+#define SYSTEM_SERVICE_SOCK_FALLBACK_PATH "/tmp/system_service.sock"
+#else
+#define SYSTEM_SERVICE_SOCK_FALLBACK_PATH SYSTEM_SERVICE_SOCK_PATH
+#endif
+#endif
+
 #ifndef SYSTEM_SERVICE_BLE_NAME
 #define SYSTEM_SERVICE_BLE_NAME "WFY"
 #endif

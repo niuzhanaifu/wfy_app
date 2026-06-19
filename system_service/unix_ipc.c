@@ -30,11 +30,13 @@
 #define LOG_TAG "unix_ipc"
 #include "log.h"
 
+#include "platform.h"
 #include "proto_sink.h"
 #include "proto_dispatch.h"
 #include "unix_ipc.h"
 
-#define SOCK_PATH "/run/system_service.sock"
+#define SOCK_PATH          SYSTEM_SERVICE_SOCK_PATH
+#define SOCK_FALLBACK_PATH SYSTEM_SERVICE_SOCK_FALLBACK_PATH
 
 typedef struct {
 	proto_sink_t    base;       /* MUST be first — we cast self -> unix_client_t */
@@ -136,6 +138,7 @@ void *unix_ipc_thread(void *arg)
 {
 	struct sockaddr_un addr;
 	int srv;
+	const char *sock_path = SOCK_PATH;
 
 	(void)arg;
 
@@ -147,17 +150,33 @@ void *unix_ipc_thread(void *arg)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", SOCK_PATH);
-	unlink(SOCK_PATH);   /* stale socket from previous run is harmless to remove */
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
+	unlink(sock_path);   /* stale socket from previous run is harmless to remove */
 
 	if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		LOGE("bind(%s): %s", SOCK_PATH, strerror(errno));
+#if SYSTEM_SERVICE_IS_A733
+		int saved_errno = errno;
+		if ((saved_errno == EACCES || saved_errno == EPERM) &&
+		    strcmp(SOCK_FALLBACK_PATH, SOCK_PATH) != 0) {
+			LOGW("bind(%s): %s; falling back to %s",
+			     SOCK_PATH, strerror(saved_errno), SOCK_FALLBACK_PATH);
+			sock_path = SOCK_FALLBACK_PATH;
+			memset(&addr, 0, sizeof(addr));
+			addr.sun_family = AF_UNIX;
+			snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock_path);
+			unlink(sock_path);
+			if (bind(srv, (struct sockaddr *)&addr, sizeof(addr)) == 0)
+				goto bound;
+		}
+#endif
+		LOGE("bind(%s): %s", sock_path, strerror(errno));
 		close(srv);
 		return NULL;
 	}
-	if (chmod(SOCK_PATH, 0666) < 0) {
+bound:
+	if (chmod(sock_path, 0666) < 0) {
 		LOGW("chmod %s 0666: %s — non-root clients may fail to connect",
-		     SOCK_PATH, strerror(errno));
+		     sock_path, strerror(errno));
 	}
 	if (listen(srv, 4) < 0) {
 		LOGE("listen: %s", strerror(errno));
@@ -165,7 +184,7 @@ void *unix_ipc_thread(void *arg)
 		return NULL;
 	}
 
-	LOGI("listening on %s (mode 0666)", SOCK_PATH);
+	LOGI("listening on %s (mode 0666)", sock_path);
 
 	for (;;) {
 		int cli_fd = accept(srv, NULL, NULL);
