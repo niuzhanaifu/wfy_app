@@ -1,0 +1,15 @@
+[Unit]
+Description=A733 system_service BLE provisioning daemon
+After=dbus.service bluetooth.service NetworkManager.service
+Wants=bluetooth.service NetworkManager.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/sbin/system_service
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

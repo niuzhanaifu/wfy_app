@@ -91,7 +91,9 @@ clean:
 	rm -f $(TARGET) *.o
 
 install:
-	install -D -m 0755 $(TARGET) $(DESTDIR)/usr/bin/$(TARGET)
 ifeq ($(strip $(TARGET_PLATFORM)),a733)
-	install -D -m 0644 system_service-a733.service $(DESTDIR)/etc/systemd/system/system_service.service
+	install -D -m 0755 $(TARGET) $(DESTDIR)/sbin/$(TARGET)
+	install -D -m 0644 a733/system_service.service $(DESTDIR)/etc/systemd/system/system_service.service
+else
+	install -D -m 0755 $(TARGET) $(DESTDIR)/usr/bin/$(TARGET)
 endif
